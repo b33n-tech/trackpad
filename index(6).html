@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#080b10" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="TrackPad+" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="description" content="Trackpad augmenté — contrôlez votre PC depuis votre mobile" />
+  <title>TrackPad+</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg-deep:     #080b10;
+      --bg-surface:  #0f1420;
+      --bg-card:     #141926;
+      --bg-lift:     #1c2333;
+      --border:      #232d42;
+      --border-glow: #2a3a5c;
+      --accent:      #3d8bff;
+      --accent-2:    #00e5b0;
+      --accent-3:    #ff4e6a;
+      --accent-vol:  #ffab30;
+      --accent-lum:  #a78bfa;
+      --text-1:      #e8edf8;
+      --text-2:      #8a97b4;
+      --text-3:      #4a5578;
+      --font-ui:     'Syne', sans-serif;
+      --font-mono:   'Space Mono', monospace;
+      --radius-lg:   18px;
+      --radius-sm:   10px;
+      --safe-bot:    env(safe-area-inset-bottom, 12px);
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-deep);
+      font-family: var(--font-ui);
+      color: var(--text-1);
+      touch-action: none;
+    }
+
+    /* ── LAYOUT ───────────────────────────────────────────── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      padding: 12px 12px calc(12px + var(--safe-bot));
+      gap: 10px;
+    }
+
+    /* ── HEADER ───────────────────────────────────────────── */
+    #header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 4px;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-icon svg { width: 18px; height: 18px; }
+
+    .logo-text {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text-1);
+    }
+
+    .logo-text span {
+      color: var(--accent);
+    }
+
+    #conn-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-2);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 10px 4px 8px;
+    }
+
+    #conn-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-3);
+      transition: background 0.4s;
+    }
+
+    #conn-dot.connected { background: var(--accent-2); box-shadow: 0 0 8px var(--accent-2); }
+    #conn-dot.connecting { background: var(--accent-vol); animation: pulse 1s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* ── TRACKPAD ─────────────────────────────────────────── */
+    #trackpad-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    #trackpad {
+      flex: 1;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    #trackpad.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent), inset 0 0 40px rgba(61,139,255,0.04);
+    }
+
+    /* grid pattern */
+    #trackpad::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(61,139,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(61,139,255,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* subtle corner labels */
+    #trackpad::after {
+      content: 'TRACKPAD';
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: var(--text-3);
+      pointer-events: none;
+    }
+
+    /* ripple feedback */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      background: rgba(61,139,255,0.25);
+      transform: translate(-50%, -50%) scale(0);
+      animation: ripple-anim 0.5s ease-out forwards;
+      pointer-events: none;
+    }
+
+    @keyframes ripple-anim {
+      to { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+    }
+
+    /* ── CLICK BUTTONS ────────────────────────────────────── */
+    #click-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .click-btn {
+      height: 52px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-2);
+      letter-spacing: 0.5px;
+      transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.08s;
+      cursor: pointer;
+    }
+
+    .click-btn:active, .click-btn.flash {
+      background: rgba(61,139,255,0.1);
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: scale(0.97);
+    }
+
+    .click-btn.right:active, .click-btn.right.flash {
+      background: rgba(255,78,106,0.1);
+      border-color: var(--accent-3);
+      color: var(--accent-3);
+    }
+
+    .click-btn svg { width: 16px; height: 16px; opacity: 0.7; }
+
+    /* ── SLIDERS SECTION ──────────────────────────────────── */
+    #sliders-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      flex-shrink: 0;
+      height: 130px;
+    }
+
+    .slider-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 16px 10px;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slider-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .slider-label {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      letter-spacing: 2px;
+      color: var(--text-2);
+    }
+
+    .slider-val {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+    }
+
+    .vol .slider-val  { color: var(--accent-vol); }
+    .lum .slider-val  { color: var(--accent-lum); }
+
+    /* Custom horizontal slider (tall touch target) */
+    .slider-track {
+      width: 100%;
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      cursor: pointer;
+      position: absolute;
+      opacity: 0;
+      z-index: 2;
+    }
+
+    .track-bg {
+      position: absolute;
+      inset: 0;
+      border-radius: 8px;
+      background: var(--bg-lift);
+    }
+
+    .track-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      border-radius: 8px;
+      transition: width 0.05s;
+      pointer-events: none;
+    }
+
+    .vol .track-fill  { background: linear-gradient(90deg, #ff7b00, var(--accent-vol)); }
+    .lum .track-fill  { background: linear-gradient(90deg, #6d28d9, var(--accent-lum)); }
+
+    .track-thumb {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 70%;
+      border-radius: 4px;
+      background: #fff;
+      pointer-events: none;
+      box-shadow: 0 0 8px rgba(255,255,255,0.4);
+    }
+
+    /* ── EVENTS LOG (subtle) ────────────────────────────────*/
+    #event-log {
+      position: fixed;
+      bottom: calc(16px + var(--safe-bot));
+      right: 16px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-3);
+      text-align: right;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* ── OVERLAY (disconnected) ───────────────────────────── */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(8,11,16,0.85);
+      backdrop-filter: blur(12px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 100;
+      transition: opacity 0.4s;
+    }
+
+    #overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .overlay-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--bg-card), var(--bg-lift));
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .overlay-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text-1);
+    }
+
+    .overlay-sub {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-2);
+      text-align: center;
+      max-width: 260px;
+      line-height: 1.6;
+    }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="2" width="6" height="9" rx="2" fill="white" opacity="0.9"/>
+          <rect x="10" y="2" width="6" height="5" rx="2" fill="white" opacity="0.5"/>
+          <rect x="2" y="13" width="14" height="3" rx="1.5" fill="white" opacity="0.4"/>
+        </svg>
+      </div>
+      <div class="logo-text">Track<span>Pad+</span></div>
+    </div>
+    <div id="conn-status">
+      <div id="conn-dot" class="connecting"></div>
+      <span id="conn-label">connexion…</span>
+    </div>
+  </div>
+
+  <!-- TRACKPAD -->
+  <div id="trackpad-wrapper">
+    <div id="trackpad"></div>
+
+    <!-- CLICK BUTTONS -->
+    <div id="click-row">
+      <div class="click-btn left" id="btn-left">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1C4.14 1 1 4.14 1 8s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm-1 9.5v-5l4 2.5-4 2.5z"/></svg>
+        CLIC GAUCHE
+      </div>
+      <div class="click-btn right" id="btn-right">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 5h10M3 8h10M3 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        CLIC DROIT
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDERS -->
+  <div id="sliders-row">
+
+    <div class="slider-card vol">
+      <div class="slider-header">
+        <span class="slider-label">VOL</span>
+        <span class="slider-val" id="vol-val">50%</span>
+      </div>
+      <div class="slider-track" id="vol-track">
+        <div class="track-bg"></div>
+        <div class="track-fill" id="vol-fill" style="width:50%"></div>
+        <div class="track-thumb" id="vol-thumb" style="left:calc(50% - 2px)"></div>
+        <input type="range" id="vol-slider" min="0" max="100" value="50" />
+      </div>
+    </div>
+
+    <div class="slider-card lum">
+      <div class="slider-header">
+        <span class="slider-label">LUM</span>
+        <span class="slider-val" id="lum-val">70%</span>
+      </div>
+      <div class="slider-track" id="lum-track">
+        <div class="track-bg"></div>
+        <div class="track-fill" id="lum-fill" style="width:70%"></div>
+        <div class="track-thumb" id="lum-thumb" style="left:calc(70% - 2px)"></div>
+        <input type="range" id="lum-slider" min="0" max="100" value="70" />
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- EVENT LOG -->
+<div id="event-log"></div>
+
+<!-- OVERLAY -->
+<div id="overlay">
+  <div class="overlay-icon">
+    <div class="spinner"></div>
+  </div>
+  <div class="overlay-title">TrackPad+</div>
+  <div class="overlay-sub">Connexion au serveur WebSocket en cours…<br/>Assurez-vous d'être sur le même réseau local.</div>
+</div>
+
+<!-- socket.io client (chargé depuis le serveur qui héberge cette page) -->
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+(() => {
+  'use strict';
+
+  // ── SOCKET ──────────────────────────────────────────────
+  const overlay   = document.getElementById('overlay');
+  const connDot   = document.getElementById('conn-dot');
+  const connLabel = document.getElementById('conn-label');
+  const eventLog  = document.getElementById('event-log');
+
+  let socket;
+  let socketReady = false;
+
+  function initSocket() {
+    try {
+      socket = io({ transports: ['websocket'], reconnectionDelay: 1500 });
+
+      socket.on('connect', () => {
+        socketReady = true;
+        connDot.className = 'connected';
+        connLabel.textContent = 'connecté';
+        overlay.classList.add('hidden');
+        logEvent('✓ connecté');
+      });
+
+      socket.on('disconnect', () => {
+        socketReady = false;
+        connDot.className = 'connecting';
+        connLabel.textContent = 'reconnexion…';
+        overlay.classList.remove('hidden');
+        logEvent('✗ déconnecté');
+      });
+
+      socket.on('connect_error', () => {
+        connDot.className = '';
+        connLabel.textContent = 'erreur';
+        logEvent('⚠ erreur ws');
+      });
+
+    } catch (e) {
+      // socket.io non disponible (test standalone)
+      connDot.className = '';
+      connLabel.textContent = 'hors-ligne';
+      overlay.classList.add('hidden');
+      logEvent('mode démo');
+    }
+  }
+
+  function emit(event, data) {
+    if (socketReady && socket) {
+      socket.emit(event, data);
+    }
+  }
+
+  let logTimer;
+  function logEvent(msg) {
+    eventLog.textContent = msg;
+    clearTimeout(logTimer);
+    logTimer = setTimeout(() => { eventLog.textContent = ''; }, 1800);
+  }
+
+  // ── TRACKPAD ─────────────────────────────────────────────
+  const trackpad = document.getElementById('trackpad');
+
+  // RAF throttling
+  let pendingMove = null;
+  let rafId = null;
+
+  function flushMove() {
+    if (pendingMove) {
+      emit('mouse-move', pendingMove);
+      pendingMove = null;
+    }
+    rafId = null;
+  }
+
+  // Touch state
+  let lastX = 0, lastY = 0;
+  let touchStartTime = 0;
+  let touchStartX = 0, touchStartY = 0;
+  let isTwoFinger = false;
+  let hasMoved = false;
+  const TAP_MAX_DURATION = 200;   // ms
+  const TAP_MAX_MOVE     = 8;     // px — seuil mouvement tap
+
+  trackpad.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    lastX = t.clientX;
+    lastY = t.clientY;
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+    touchStartTime = Date.now();
+    hasMoved = false;
+    isTwoFinger = e.touches.length >= 2;
+    trackpad.classList.add('active');
+  }, { passive: false });
+
+  trackpad.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (e.touches.length >= 2) { isTwoFinger = true; return; }
+
+    const t = e.touches[0];
+    const dx = (t.clientX - lastX) * 1.6;   // sensitivity factor
+    const dy = (t.clientY - lastY) * 1.6;
+    lastX = t.clientX;
+    lastY = t.clientY;
+
+    if (Math.abs(dx) > 0.2 || Math.abs(dy) > 0.2) {
+      hasMoved = true;
+      pendingMove = { dx: +dx.toFixed(2), dy: +dy.toFixed(2) };
+      if (!rafId) rafId = requestAnimationFrame(flushMove);
+    }
+  }, { passive: false });
+
+  trackpad.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    trackpad.classList.remove('active');
+
+    const elapsed = Date.now() - touchStartTime;
+    const dx = Math.abs(lastX - touchStartX);
+    const dy = Math.abs(lastY - touchStartY);
+    const isTap = elapsed < TAP_MAX_DURATION && dx < TAP_MAX_MOVE && dy < TAP_MAX_MOVE && !hasMoved;
+
+    if (isTap) {
+      if (isTwoFinger || e.changedTouches.length === 0) {
+        sendRightClick(touchStartX, touchStartY);
+      } else {
+        sendLeftClick(touchStartX, touchStartY);
+      }
+    }
+    isTwoFinger = false;
+  }, { passive: false });
+
+  function sendLeftClick(x, y) {
+    emit('click-left', {});
+    spawnRipple(x, y);
+    flashBtn('btn-left');
+    logEvent('↖ clic gauche');
+  }
+
+  function sendRightClick(x, y) {
+    emit('click-right', {});
+    spawnRipple(x, y, true);
+    flashBtn('btn-right');
+    logEvent('↗ clic droit');
+  }
+
+  function spawnRipple(x, y, isRight = false) {
+    const r = document.createElement('div');
+    r.className = 'ripple';
+    const rect = trackpad.getBoundingClientRect();
+    r.style.left = (x - rect.left) + 'px';
+    r.style.top  = (y - rect.top)  + 'px';
+    if (isRight) r.style.background = 'rgba(255,78,106,0.25)';
+    trackpad.appendChild(r);
+    r.addEventListener('animationend', () => r.remove());
+  }
+
+  function flashBtn(id) {
+    const btn = document.getElementById(id);
+    btn.classList.add('flash');
+    setTimeout(() => btn.classList.remove('flash'), 150);
+  }
+
+  // ── CLICK BUTTONS (manual) ───────────────────────────────
+  document.getElementById('btn-left').addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    sendLeftClick(0, 0);
+  }, { passive: false });
+
+  document.getElementById('btn-right').addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    sendRightClick(0, 0);
+  }, { passive: false });
+
+  // ── SLIDERS ───────────────────────────────────────────────
+  function setupSlider({ sliderId, fillId, thumbId, valId, event, unit }) {
+    const slider = document.getElementById(sliderId);
+    const fill   = document.getElementById(fillId);
+    const thumb  = document.getElementById(thumbId);
+    const valEl  = document.getElementById(valId);
+
+    let pending = null;
+    let rafSlider = null;
+
+    function updateVisual(val) {
+      const pct = val + '%';
+      fill.style.width  = pct;
+      thumb.style.left  = `calc(${pct} - 2px)`;
+      valEl.textContent = val + unit;
+    }
+
+    function flushSlider() {
+      if (pending !== null) {
+        emit(event, { value: pending });
+        logEvent(`${event}: ${pending}${unit}`);
+        pending = null;
+      }
+      rafSlider = null;
+    }
+
+    slider.addEventListener('input', () => {
+      const val = parseInt(slider.value, 10);
+      updateVisual(val);
+      pending = val;
+      if (!rafSlider) rafSlider = requestAnimationFrame(flushSlider);
+    });
+
+    updateVisual(parseInt(slider.value, 10));
+  }
+
+  setupSlider({ sliderId: 'vol-slider', fillId: 'vol-fill', thumbId: 'vol-thumb', valId: 'vol-val', event: 'set-volume',     unit: '%' });
+  setupSlider({ sliderId: 'lum-slider', fillId: 'lum-fill', thumbId: 'lum-thumb', valId: 'lum-val', event: 'set-brightness', unit: '%' });
+
+  // ── INIT ─────────────────────────────────────────────────
+  initSocket();
+
+  // Prevent system scroll / zoom on entire page
+  document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+
+})();
+</script>
+
+</body>
+</html>
